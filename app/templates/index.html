@@ -271,11 +271,12 @@
             
             try {
                 const formData = new FormData(e.target);
-                const tabularData = Object.fromEntries(formData.entries());
-                Object.keys(tabularData).forEach(key => {
-                    if (key !== 'completeImage') tabularData[key] = parseFloat(tabularData[key]);
-                });
-                delete tabularData.completeImage;
+                const tabularData = {};
+                for (const [key, value] of formData.entries()) {
+                    if (key !== 'completeImage' && value) {
+                        tabularData[key] = parseFloat(value);
+                    }
+                }
                 
                 console.log("[DEBUG] Sending data:", tabularData);
                 
@@ -294,9 +295,19 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ image_data: imageData, tabular_data: tabularData })
                 });
-                const data = await response.json();
                 
-                console.log("[DEBUG] Response:", data);
+                const text = await response.text();
+                console.log("[DEBUG] Raw response:", text);
+                
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    resultDiv.innerHTML = `<div class="result error">Server returned non-JSON: ${text.substring(0, 500)}</div>`;
+                    return;
+                }
+                
+                console.log("[DEBUG] Parsed response:", data);
                 
                 let html = '';
                 if (data.image_prediction && !data.image_prediction.error) {
