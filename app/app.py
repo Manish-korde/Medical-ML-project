@@ -1,39 +1,41 @@
 """
-Medical ML Flask Application
-Simplified for deployment reliability.
+Medical ML - Ultra Memory Optimized for Render Free Tier
+Models load only when first API call happens
 """
 
 import os
 import sys
-
-# Force CPU only
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
-# Fix path for deployment
 _root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
-print("[INFO] Starting Medical ML app...")
-
-# Flask setup
+# DON'T import torch here - will load models lazily
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-
 app.config['UPLOAD_FOLDER'] = 'app/static/uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Import ML functions at module level (works after path is fixed)
-from src.api.predict import predict_image, predict_tabular, generate_medical_report
+# Lazy load functions
+_predict_image = None
+_predict_tabular = None
+_generate_report = None
 
-print("[INFO] ML functions imported successfully")
-
-# =============================================================================
-# ROUTES
-# =============================================================================
+def _load_ml():
+    """Load ML functions only when first needed"""
+    global _predict_image, _predict_tabular, _generate_report
+    if _predict_image is None:
+        print("[INFO] Loading models...")
+        from src.api.predict import predict_image, predict_tabular, generate_medical_report
+        _predict_image = predict_image
+        _predict_tabular = predict_tabular
+        _generate_report = generate_medical_report
+        print("[INFO] Models loaded")
+    return True
 
 @app.route('/')
 def index():
@@ -41,101 +43,64 @@ def index():
 
 @app.route('/predict/image', methods=['POST'])
 def predict_image_api():
+    _load_ml()
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file'}), 400
+    fp = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(fp)
     try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(filepath)
-        
-        result = predict_image(filepath)
-        return jsonify(result)
+        return jsonify(_predict_image(fp))
     except Exception as e:
-        print(f"[ERROR] Image: {str(e)}")
-        return jsonify({'error': str(e), 'prediction': None}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/predict/tabular', methods=['POST'])
 def predict_tabular_api():
+    _load_ml()
+    data = request.json
+    required = ['age','sex','cp','trestbps','chol','fbs','restecg','thalach','exang','oldpeak','slope','ca','thal']
+    for f in required:
+        if f not in data:
+            return jsonify({'error': f'Missing: {f}'}), 400
     try:
-        data = request.json
-        required = ['age', 'sex', 'cp', 'trestbps', 'chol', 'fbs', 'restecg', 
-                 'thalach', 'exang', 'oldpeak', 'slope', 'ca', 'thal']
-        
-        for field in required:
-            if field not in data:
-                return jsonify({'error': f'Missing: {field}'}), 400
-        
-        result = predict_tabular(data)
-        return jsonify(result)
+        return jsonify(_predict_tabular(data))
     except Exception as e:
-        print(f"[ERROR] Tabular: {str(e)}")
-        return jsonify({'error': str(e), 'prediction': None}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/predict/complete', methods=['POST'])
 def predict_complete_api():
-    try:
-        data = request.json
-        image_result = None
-        tabular_result = None
-        llm_analysis = None
-        
-        # Process image
-        if data.get('image_data'):
-            try:
-                import base64
-                from PIL import Image
-                import io
-                
-                img_data = base64.b64decode(data['image_data'])
-                img = Image.open(io.BytesIO(img_data))
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'temp.png')
-                img.save(filepath)
-                
-                image_result = predict_image(filepath)
-                print(f"[INFO] Image: {image_result.get('prediction')}")
-            except Exception as e:
-                image_result = {'error': str(e)}
-                print(f"[ERROR] Image: {e}")
-        
-        # Process tabular
-        if data.get('tabular_data'):
-            try:
-                tabular_result = predict_tabular(data['tabular_data'])
-                print(f"[INFO] Heart: {tabular_result.get('prediction')}")
-            except Exception as e:
-                tabular_result = {'error': str(e)}
-                print(f"[ERROR] Heart: {e}")
-        
-        # Generate LLM report
-        image_valid = image_result and not image_result.get('error')
-        tabular_valid = tabular_result and not tabular_result.get('error')
-        
-        if image_valid or tabular_valid:
-            try:
-                patient_data = data.get('tabular_data')
-                llm_analysis = generate_medical_report(image_result, tabular_result, patient_data)
-            except Exception as e:
-                llm_analysis = f"Report error: {str(e)}"
-        
-        return jsonify({
-            'image_prediction': image_result,
-            'heart_risk': tabular_result,
-            'llm_analysis': llm_analysis,
-            'validation': {'image_valid': image_valid, 'tabular_valid': tabular_valid}
-        })
-    except Exception as e:
-        print(f"[ERROR] Complete: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+    _load_ml()
+    data = request.json
+    img_res, tab_res, report = None, None, None
+    
+    if data.get('image_data'):
+        try:
+            import base64
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(base64.b64decode(data['image_data'])))
+            fp = os.path.join(app.config['UPLOAD_FOLDER'], 'tmp.png')
+            img.save(fp)
+            img_res = _predict_image(fp)
+        except Exception as e:
+            img_res = {'error': str(e)}
+    
+    if data.get('tabular_data'):
+        try:
+            tab_res = _predict_tabular(data['tabular_data'])
+        except Exception as e:
+            tab_res = {'error': str(e)}
+    
+    if (img_res and not img_res.get('error')) or (tab_res and not tab_res.get('error')):
+        try:
+            report = _generate_report(img_res, tab_res, data.get('tabular_data'))
+        except Exception as e:
+            report = f"Error: {str(e)}"
+    
+    return jsonify({'image_prediction': img_res, 'heart_risk': tab_res, 'llm_analysis': report})
 
-# =============================================================================
-# ENTRY POINT
-# =============================================================================
 if __name__ == '__main__':
-    print("=" * 50)
-    print("Medical ML App running on http://localhost:5000")
-    print("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("Starting - models load on first request")
+    app.run(host='0.0.0.0', port=5000, debug=False)
