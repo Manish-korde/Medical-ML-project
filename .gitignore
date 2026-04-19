@@ -16,10 +16,9 @@ data/
 
 # Trained model weights
 # NOTE: Keep models/ for deployment - these files are needed in production
-# If models folder is large, consider using Git LFS instead
-# models/
-*.pth
-*.pt
+# Only exclude specific formats if needed
+# *.pth
+# *.pt
 
 # Secrets / environment
 .env
