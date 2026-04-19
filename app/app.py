@@ -14,9 +14,18 @@ if _root not in sys.path:
 # DON'T import torch here - will load models lazily
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 CORS(app)
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Return JSON instead of HTML for HTTP errors."""
+    if isinstance(e, HTTPException):
+        return jsonify(error=str(e.description)), e.code
+    return jsonify(error=str(e)), 500
+
 app.config['UPLOAD_FOLDER'] = 'app/static/uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -70,13 +79,13 @@ def predict_tabular_api():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/predict/complete', methods=['POST'])
-def predict_complete_api():
+def complete_analysis():
     try:
         _load_ml()
-        data = request.json
+        data = request.get_json(silent=True) or {}
         print("[DEBUG] /predict/complete received:", list(data.keys()) if data else "empty")
         
-        img_res, tab_res, report = None, None, None
+        pneu_result, heart_result, report_text = None, None, None
         
         if data.get('image_data'):
             try:
@@ -86,32 +95,38 @@ def predict_complete_api():
                 img = Image.open(io.BytesIO(base64.b64decode(data['image_data'])))
                 fp = os.path.join(app.config['UPLOAD_FOLDER'], 'tmp.png')
                 img.save(fp)
-                img_res = _predict_image(fp)
-                print("[DEBUG] Image prediction:", img_res)
+                pneu_result = _predict_image(fp)
             except Exception as e:
-                img_res = {'error': str(e)}
-                print("[DEBUG] Image error:", str(e))
+                pneu_result = {'error': str(e)}
         
         if data.get('tabular_data'):
             try:
-                tab_res = _predict_tabular(data['tabular_data'])
-                print("[DEBUG] Tabular prediction:", tab_res)
+                heart_result = _predict_tabular(data['tabular_data'])
             except Exception as e:
-                tab_res = {'error': str(e)}
-                print("[DEBUG] Tabular error:", str(e))
+                heart_result = {'error': str(e)}
         
-        if (img_res and not img_res.get('error')) or (tab_res and not tab_res.get('error')):
+        if (pneu_result and not pneu_result.get('error')) or (heart_result and not heart_result.get('error')):
             try:
-                report = _generate_report(img_res, tab_res, data.get('tabular_data'))
+                report_text = _generate_report(pneu_result, heart_result, data.get('tabular_data'))
             except Exception as e:
-                report = f"Error: {str(e)}"
+                report_text = f"Error: {str(e)}"
         
-        response = {'image_prediction': img_res, 'heart_risk': tab_res, 'llm_analysis': report}
-        print("[DEBUG] Returning response:", response)
-        return jsonify(response)
+        print("Response:", {
+            "pneumonia": pneu_result,
+            "heart": heart_result
+        })
+
+        return jsonify({
+            "pneumonia": pneu_result,
+            "heart": heart_result,
+            "report": report_text
+        })
+
     except Exception as e:
-        print("[ERROR] /predict/complete failed:", str(e))
-        return jsonify({'error': str(e)}), 500
+        print("ERROR:", str(e))
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 if __name__ == '__main__':
     import os

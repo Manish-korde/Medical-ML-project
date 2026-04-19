@@ -310,28 +310,28 @@
                 console.log("[DEBUG] Parsed response:", data);
                 
                 let html = '';
-                if (data.image_prediction && !data.image_prediction.error) {
+                if (data.pneumonia && !data.pneumonia.error) {
                     html += `<div class="result success">
                         <h3>Image Analysis</h3>
-                        <div class="prediction">${data.image_prediction.prediction}</div>
-                        <div class="confidence">Confidence: ${data.image_prediction.confidence}%</div>
+                        <div class="prediction">${data.pneumonia.prediction}</div>
+                        <div class="confidence">Confidence: ${data.pneumonia.confidence}%</div>
                     </div>`;
                 }
-                if (data.heart_risk && !data.heart_risk.error) {
+                if (data.heart && !data.heart.error) {
                     html += `<div class="result success">
                         <h3>Heart Disease Risk</h3>
-                        <div class="prediction">${data.heart_risk.prediction}</div>
-                        <div class="confidence">Confidence: ${data.heart_risk.confidence}%</div>
+                        <div class="prediction">${data.heart.prediction}</div>
+                        <div class="confidence">Confidence: ${data.heart.confidence}%</div>
                     </div>`;
                 }
-                if (data.llm_analysis) {
-                    html += `<div class="report"><h3>AI Medical Report</h3>${data.llm_analysis}</div>`;
+                if (data.report) {
+                    html += `<div class="report"><h3>AI Medical Report</h3>${data.report}</div>`;
                 }
-                if (data.image_prediction && data.image_prediction.error) {
-                    html += `<div class="result error">Image Error: ${data.image_prediction.error}</div>`;
+                if (data.pneumonia && data.pneumonia.error) {
+                    html += `<div class="result error">Image Error: ${data.pneumonia.error}</div>`;
                 }
-                if (data.heart_risk && data.heart_risk.error) {
-                    html += `<div class="result error">Heart Error: ${data.heart_risk.error}</div>`;
+                if (data.heart && data.heart.error) {
+                    html += `<div class="result error">Heart Error: ${data.heart.error}</div>`;
                 }
                 resultDiv.innerHTML = html;
             } catch (error) {
