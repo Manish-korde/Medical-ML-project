@@ -102,5 +102,7 @@ def predict_complete_api():
     return jsonify({'image_prediction': img_res, 'heart_risk': tab_res, 'llm_analysis': report})
 
 if __name__ == '__main__':
-    print("Starting - models load on first request")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    print(f"Starting on port {port}")
+    app.run(host='0.0.0.0', port=port, debug=False)
