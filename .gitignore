@@ -1,0 +1,36 @@
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Data (too big for git)
+data/
+*.zip
+
+# Trained model weights
+# NOTE: Keep models/ for deployment - these files are needed in production
+# If models folder is large, consider using Git LFS instead
+# models/
+*.pth
+*.pt
+
+# Secrets / environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flask uploads
+app/static/uploads/
