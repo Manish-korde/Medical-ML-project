@@ -134,6 +134,14 @@ Note: CNN training takes ~1-2 hours on CPU.
 
 ## Deployment
 
+### Live Demo
+
+Access the deployed application at: **https://medical-ml.onrender.com**
+
+Note: First load may take 30-50 seconds (free tier cold start).
+
+---
+
 See `DEPLOYMENT.md` for cloud deployment instructions (Render, Railway, Heroku).
 
 ---
